@@ -29,21 +29,43 @@ struct flv_header {
 	uint8_t type_flag;
 	uint32_t  data_offset;
 };
+
+//fast two index-pointer managed string class
+class Stream {
+public:
+	Stream() : stream(nullptr), start(0), end(0) {}
+	Stream(string* input) : stream(input) { start = 0; end = (*input).size(); }
+	Stream(const Stream& m) : stream(m.stream), start(m.start), end(m.end) {}
+	const char& operator[](size_t i) const { assert(stream != nullptr); return (*stream)[start + i]; }
+	char& operator[](size_t i) { assert(stream != nullptr); return (*stream)[start + i]; }
+	Stream& operator=(const Stream& m);
+	const Stream substr(size_t i) { Stream ret(*this); ret.start += i; return ret; }
+	const Stream substr(size_t i, size_t len) { Stream ret(*this); ret.start += i; ret.end = start + len; return ret; }
+	void reset() { start = 0; }
+	bool empty() { return size() == 0; }
+	void clear() { start = 0; end = 0; }
+	size_t size() const;
+	void push_back(const char c);
+	void append(const string& s);
+	void append(const Stream& stream);
+	void append(const string& s, size_t len);
+private:
+	string* stream;
+	size_t start;
+	size_t end;
+};
 struct tag {
 	uint32_t previous_tag_size;
 	uint8_t data_type;
 	uint32_t body_size;
 	uint32_t timestamp;
-	string body;
+	Stream body;
 };
-
 struct tag_return_type {
-	//~tag_return_type();
+	//~tag_return_type(); ->cannot use destructor, or the heap memory void* will be discarded
 	uint8_t type;
 	void* pointer;
 };
-
-//unordered_map<string, tag_return_type> object;
 
 class ECMAObject {
 public:
@@ -60,32 +82,32 @@ public:
 	unordered_map<string, tag_return_type> map;
 };
 
-int32_t read_int(string& stream);
-uint32_t read_uint(string& stream);
-uint8_t read_byte(string& stream);
-tag_return_type read_amf_number(string& stream);
-tag_return_type read_amf_boolean(string& stream);
-tag_return_type read_amf_string(string& stream);
-tag_return_type read_amf_object(string& stream);
-tag_return_type read_amf_mixed_array(string& stream);
-tag_return_type read_amf_array(string& stream);
-tag_return_type read_amf(string& stream);
+int32_t read_int(Stream& stream);
+uint32_t read_uint(Stream& stream);
+uint8_t read_byte(Stream& stream);
+tag_return_type read_amf_number(Stream& stream);
+tag_return_type read_amf_boolean(Stream& stream);
+tag_return_type read_amf_string(Stream& stream);
+tag_return_type read_amf_object(Stream& stream);
+tag_return_type read_amf_mixed_array(Stream& stream);
+tag_return_type read_amf_array(Stream& stream);
+tag_return_type read_amf(Stream& stream);
 
-void write_amf_number(string& stream, tag_return_type& tag);
-void write_amf_boolean(string& stream, tag_return_type& tag);
-void write_amf_string(string& stream, tag_return_type& tag);
-void write_amf_string(string& stream, const string& s);
-void write_amf_object(string& stream, tag_return_type& tag);
-void write_amf_mixed_array(string& stream, tag_return_type& tag);
-void write_amf_array(string& stream, tag_return_type& tag);
-void write_amf(string& stream, tag_return_type& tag);
-bool write_meta_tag(string& stream, pair<tag_return_type, tag_return_type> meta);
-bool write_tag(string& stream, const tag& t);
-pair<tag_return_type, tag_return_type> read_meta_data(string& stream);
+void write_amf_number(Stream& stream, tag_return_type& tag);
+void write_amf_boolean(Stream& stream, tag_return_type& tag);
+void write_amf_string(Stream& stream, tag_return_type& tag);
+void write_amf_string(Stream& stream, const string& s);
+void write_amf_object(Stream& stream, tag_return_type& tag);
+void write_amf_mixed_array(Stream& stream, tag_return_type& tag);
+void write_amf_array(Stream& stream, tag_return_type& tag);
+void write_amf(Stream& stream, tag_return_type& tag);
+bool write_meta_tag(Stream& stream, pair<tag_return_type, tag_return_type> meta);
+bool write_tag(Stream& stream, const tag& t);
+pair<tag_return_type, tag_return_type> read_meta_data(Stream& stream);
 pair<tag_return_type, tag_return_type> read_meta_tag(tag& item);
-bool read_flv_header(string& stream, flv_header& header);
-bool read_tag(string& stream, tag& stream_tag);
+bool read_flv_header(Stream& stream, flv_header& header);
+bool read_tag(Stream& stream, tag& stream_tag);
 
 
-//void tag_return_type_destructor(tag_return_type o);
+void tag_return_type_destructor(tag_return_type o);
 bool concat_flv(vector<string>& input, string& output);

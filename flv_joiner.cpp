@@ -2,7 +2,7 @@
 
 
 
-unordered_map<uint8_t, tag_return_type(*)(string& stream)> amf_readers = {
+unordered_map<uint8_t, tag_return_type(*)(Stream& stream)> amf_readers = {
 	{ AMF_TYPE_NUMBER, read_amf_number },
 	{ AMF_TYPE_BOOLEAN, read_amf_boolean },
 	{ AMF_TYPE_STRING, read_amf_string },
@@ -11,7 +11,7 @@ unordered_map<uint8_t, tag_return_type(*)(string& stream)> amf_readers = {
 	{ AMF_TYPE_ARRAY, read_amf_array }
 };
 
-unordered_map<uint8_t, void(*)(string& stream, tag_return_type& t)> amf_writers = {
+unordered_map<uint8_t, void(*)(Stream& stream, tag_return_type& t)> amf_writers = {
 	{ AMF_TYPE_NUMBER, write_amf_number },
 	{ AMF_TYPE_BOOLEAN, write_amf_boolean },
 	{ AMF_TYPE_STRING, write_amf_string },
@@ -58,6 +58,69 @@ tag_return_type::~tag_return_type() {
 }*/
 
 
+Stream& Stream::operator=(const Stream& m) {
+	stream = m.stream;
+	start = m.start;
+	end = m.end;
+	return *this;
+}
+size_t Stream::size() const{
+	assert(end >= start);
+	return end - start;
+}
+
+void Stream::push_back(const char c) {
+	assert(stream != nullptr);
+	if (end + 1 > (*stream).size()) {
+		(*stream).push_back(c);
+		++end;
+	} else {
+		(*stream)[end++] = c;
+	}
+}
+
+void Stream::append(const string& s) {
+	
+	//for (size_t i = 0; i < s.size(); ++i) {
+	//	push_back(s[i]);
+	//}
+	assert(stream != nullptr);
+	size_t len = s.size();
+	size_t finalend = end + len;
+	if (finalend > (*stream).size()) {
+		(*stream).resize(finalend);
+	}
+	memcpy(&(*stream)[end], const_cast<char*>(&s[0]), len);
+	end = finalend;
+}
+void Stream::append(const string& s, size_t len) {
+	
+	//for (size_t i = 0; i < len; ++i) {
+	//	push_back(s[i]);
+	//}
+	assert(stream != nullptr);
+	size_t finalend = end + len;
+	if (finalend > (*stream).size()) {
+		(*stream).resize(finalend);
+	}
+	memcpy(&(*stream)[end], const_cast<char*>(&s[0]), len);
+	end = finalend;
+}
+
+void Stream::append(const Stream& s) {
+	
+	//for (size_t i = 0; i < input.size(); ++i) {
+	//	push_back(input[i]);
+	//}
+	assert(stream != nullptr);
+	size_t len = s.size();
+	size_t finalend = end + len;
+	if (finalend > (*stream).size()) {
+		(*stream).resize(finalend);
+	}
+	memcpy(&(*stream)[end], const_cast<char*>(&s[0]), len);
+	end = finalend;
+}
 void tag_return_type_destructor(tag_return_type o) {
 	switch (o.type) {
 	case AMF_TYPE_NUMBER:
@@ -133,7 +196,7 @@ vector<string> ECMAObject::keys() {
 	return ret;
 }
 
-int32_t read_int(string& stream) {
+int32_t read_int(Stream& stream) {
 	assert(stream.size() >= 4);
 	//int32_t ret = stream[0] << 24 | stream[1] << 16 | stream[2] << 8 | stream[3];//read big-endian
 	int32_t ret;
@@ -143,7 +206,7 @@ int32_t read_int(string& stream) {
 	return ret;
 }
 
-uint32_t read_uint(string& stream) {
+uint32_t read_uint(Stream& stream) {
 	assert(stream.size() >= 4);
 	//uint32_t ret = stream[0] << 24 | stream[1] << 16 | stream[2] << 8 | stream[3];//read big-endian
 	uint32_t ret;
@@ -152,7 +215,7 @@ uint32_t read_uint(string& stream) {
 	stream = stream.substr(4);//pop first 4 bytes
 	return ret;
 }
-void write_uint(string& stream, uint32_t number) {
+void write_uint(Stream& stream, uint32_t number) {
 	char bytes[4];
 	memcpy(bytes, &number, 4);
 	stream.push_back(bytes[3]);
@@ -161,10 +224,10 @@ void write_uint(string& stream, uint32_t number) {
 	stream.push_back(bytes[0]);
 }
 
-void write_byte(string& stream, char byte) {
+void write_byte(Stream& stream, char byte) {
 	stream.push_back(byte);
 }
-uint8_t read_byte(string& stream) {
+uint8_t read_byte(Stream& stream) {
 	assert(stream.size() >= 1);
 	uint8_t ret = stream[0];
 	stream = stream.substr(1);
@@ -174,7 +237,7 @@ uint8_t read_byte(string& stream) {
 
 
 
-tag_return_type read_amf_number(string& stream) {
+tag_return_type read_amf_number(Stream& stream) {
 	//In big endian, you store the most significant byte in the smallest address
 	//In little endian, you store the least significant byte in the smallest address
 	uint8_t buf[8] = {static_cast<uint8_t>(stream[7]), static_cast<uint8_t>(stream[6]), static_cast<uint8_t>(stream[5]), static_cast<uint8_t>(stream[4]), 
@@ -186,7 +249,7 @@ tag_return_type read_amf_number(string& stream) {
 	memcpy(ret.pointer, buf, sizeof(double));
 	return ret;
 }
-tag_return_type read_amf_boolean(string& stream) {
+tag_return_type read_amf_boolean(Stream& stream) {
 	uint8_t b = read_byte(stream);
 	assert(b == 0 || b == 1);
 	tag_return_type ret;
@@ -196,7 +259,7 @@ tag_return_type read_amf_boolean(string& stream) {
 	return ret;
 }
 
-tag_return_type read_amf_string(string& stream) {
+tag_return_type read_amf_string(Stream& stream) {
 	tag_return_type ret;
 	ret.type = AMF_TYPE_STRING;
 	if (stream.empty()) {
@@ -215,7 +278,7 @@ tag_return_type read_amf_string(string& stream) {
 	stream = stream.substr(len);
 	return ret;
 }
-tag_return_type read_amf_object(string& stream) {
+tag_return_type read_amf_object(Stream& stream) {
 	tag_return_type ret;
 	ret.type = AMF_TYPE_OBJECT;
 	ret.pointer = new unordered_map<string, tag_return_type>;
@@ -239,7 +302,7 @@ tag_return_type read_amf_object(string& stream) {
 	}
 	return ret;
 }
-tag_return_type read_amf_mixed_array(string& stream) {
+tag_return_type read_amf_mixed_array(Stream& stream) {
 	tag_return_type ret;
 	ret.type = AMF_TYPE_MIXED_ARRAY;
 	uint32_t max_number = read_uint(stream);
@@ -263,7 +326,7 @@ tag_return_type read_amf_mixed_array(string& stream) {
 	ret.pointer = mix_results;
 	return ret;
 }
-tag_return_type read_amf_array(string& stream) {
+tag_return_type read_amf_array(Stream& stream) {
 	uint32_t n = read_uint(stream);
 	tag_return_type ret;
 	ret.type = AMF_TYPE_ARRAY;
@@ -275,10 +338,10 @@ tag_return_type read_amf_array(string& stream) {
 	return ret;
 }
 
-tag_return_type read_amf(string& stream) {
+tag_return_type read_amf(Stream& stream) {
 	return amf_readers[read_byte(stream)](stream);
 }
-void write_amf_number(string& stream, tag_return_type& tag) {
+void write_amf_number(Stream& stream, tag_return_type& tag) {
 	assert(tag.type == AMF_TYPE_NUMBER);
 	char bytes[8];
 	memcpy(bytes, tag.pointer, sizeof(double));
@@ -288,7 +351,7 @@ void write_amf_number(string& stream, tag_return_type& tag) {
 	delete reinterpret_cast<double*>(tag.pointer);
 	tag.pointer = nullptr;
 }
-void write_amf_boolean(string& stream, tag_return_type& tag) {
+void write_amf_boolean(Stream& stream, tag_return_type& tag) {
 	assert(tag.type == AMF_TYPE_BOOLEAN);
 	if (*reinterpret_cast<uint8_t*>(tag.pointer)) {
 		write_byte(stream, '\x01');
@@ -298,7 +361,7 @@ void write_amf_boolean(string& stream, tag_return_type& tag) {
 	delete reinterpret_cast<uint8_t*>(tag.pointer);
 	tag.pointer = nullptr;
 }
-void write_amf_string(string& stream, tag_return_type& tag) {
+void write_amf_string(Stream& stream, tag_return_type& tag) {
 	assert(tag.type == AMF_TYPE_STRING);
 	char* s = reinterpret_cast<char*>(tag.pointer);
 	char bytes[2];
@@ -312,7 +375,7 @@ void write_amf_string(string& stream, tag_return_type& tag) {
 	delete[] reinterpret_cast<uint8_t*>(tag.pointer);
 	tag.pointer = nullptr;
 }
-void write_amf_string(string& stream, const string& s) {
+void write_amf_string(Stream& stream, const string& s) {
 	char bytes[2];
 	size_t len_t = s.length();
 	assert(len_t <= 0xff);
@@ -322,7 +385,7 @@ void write_amf_string(string& stream, const string& s) {
 	stream.push_back(bytes[0]);
 	stream.append(s);
 }
-void write_amf_object(string& stream, tag_return_type& tag) {
+void write_amf_object(Stream& stream, tag_return_type& tag) {
 	assert(tag.type == AMF_TYPE_OBJECT);
 	//the order of k matters ?
 	for (auto &item : *(reinterpret_cast<unordered_map<string, tag_return_type>*>(tag.pointer))) {
@@ -334,7 +397,7 @@ void write_amf_object(string& stream, tag_return_type& tag) {
 	delete reinterpret_cast<unordered_map<string, tag_return_type>*>(tag.pointer);
 	tag.pointer = nullptr;
 }
-void write_amf_mixed_array(string& stream, tag_return_type& tag) {
+void write_amf_mixed_array(Stream& stream, tag_return_type& tag) {
 	assert(tag.type == AMF_TYPE_MIXED_ARRAY);
 	uint32_t max_number = reinterpret_cast<ECMAObject*>(tag.pointer)->max_number;
 	for (auto &item : reinterpret_cast<ECMAObject*>(tag.pointer)->data) {//&item has to pass by reference, write_amf will release the heap and let the pointer = nullptr, then it will not be release again in destructor
@@ -346,7 +409,7 @@ void write_amf_mixed_array(string& stream, tag_return_type& tag) {
 	delete reinterpret_cast<ECMAObject*>(tag.pointer);
 	tag.pointer = nullptr;
 }
-void write_amf_array(string& stream, tag_return_type& tag) {
+void write_amf_array(Stream& stream, tag_return_type& tag) {
 	assert(tag.type == AMF_TYPE_ARRAY);
 	vector<tag_return_type>* v = reinterpret_cast<vector<tag_return_type>*>(tag.pointer);
 	assert(v->size() <= 0xffff);
@@ -357,12 +420,12 @@ void write_amf_array(string& stream, tag_return_type& tag) {
 	delete reinterpret_cast<vector<tag_return_type>*>(tag.pointer);
 	tag.pointer = nullptr;
 }
-void write_amf(string& stream, tag_return_type& tag) {
+void write_amf(Stream& stream, tag_return_type& tag) {
 	write_byte(stream, tag.type);
 	amf_writers[tag.type](stream, tag);
 }
 
-pair<tag_return_type, tag_return_type> read_meta_data(string& stream) {
+pair<tag_return_type, tag_return_type> read_meta_data(Stream& stream) {
 	tag_return_type	meta_type = read_amf(stream);
 	tag_return_type meta = read_amf(stream);
 	return{ meta_type, meta };
@@ -375,21 +438,21 @@ pair<tag_return_type, tag_return_type> read_meta_tag(tag& item) {
 	return read_meta_data(item.body);
 }
 
-bool write_meta_tag(string& stream, pair<tag_return_type, tag_return_type> meta) {
-	string buffer;
+bool write_meta_tag(Stream& stream, pair<tag_return_type, tag_return_type> meta) {
+	Stream buffer(stream);
 	write_amf(buffer, meta.first);//meta_type
 	write_amf(buffer, meta.second);//meta_data
 	tag t;
 	t.data_type = TAG_TYPE_METADATA;
 	t.timestamp = 0;
-	t.body_size = static_cast<uint32_t>(buffer.length());
+	t.body_size = static_cast<uint32_t>(buffer.size());
 	t.body = buffer;
 	t.previous_tag_size = 0;
 	write_tag(stream, t);
 	return true;
 }
 
-bool read_flv_header(string& stream, flv_header& header) {
+bool read_flv_header(Stream& stream, flv_header& header) {
 	header.sig[0] = read_byte(stream);
 	header.sig[1] = read_byte(stream);
 	header.sig[2] = read_byte(stream);
@@ -410,7 +473,7 @@ bool read_flv_header(string& stream, flv_header& header) {
 	}
 	return true;
 }
-void write_flv_header(string& stream) {
+void write_flv_header(Stream& stream) {
 	stream.push_back('F');
 	stream.push_back('L');
 	stream.push_back('V');
@@ -418,30 +481,15 @@ void write_flv_header(string& stream) {
 	write_byte(stream, 5);
 	write_uint(stream, 9);
 }
-bool read_tag(string& stream, tag& stream_tag) {
-	cout << stream.size() << endl;
-	if (stream.size() < 10) {
-		int a = 5;
-	}
+bool read_tag(Stream& stream, tag& stream_tag) {
+	//cout << stream.size() << endl;
 	if (stream.size() == 4) {
 		return false;
 	}
 	stream_tag.previous_tag_size = read_uint(stream);
 	stream_tag.data_type = read_byte(stream);
-	/*
-	char a1 = stream[0];
-	char a2 = stream[1];
-	char a3 = stream[2];
-	char a4 = a1 << 16;
-	char a5 = a2 << 8;
-	char a6 = a3;
-	char a7 = (a1 << 16 | a2 << 8);
-	char a8 = a7 | a6;
-	uint32_t final1 = a8;
-	uint32_t final = (a1 << 16 | a2 << 8 | a3);
-	stream_tag.body_size = (stream[0] << 16 | stream[1] << 8 | stream[2]);
-	overflow in this way:  2<<8-->0 in char, 0 << 16 | 2 << 8 | = 0, and 0|-112 = -112->uint32_t -> inverse 1110000-> 11111111111111111111111110001111 = 4294967183
-	*/
+	//stream_tag.body_size = (stream[0] << 16 | stream[1] << 8 | stream[2]);
+	//overflow in this way:  2<<8-->0 in char, 0 << 16 | 2 << 8 | = 0, and 0|-112 = -112->uint32_t -> inverse 1110000-> 11111111111111111111111110001111 = 4294967183
 	uint32_t a0 = static_cast<uint8_t>(stream[0]) << 16;
 	uint32_t a1 = static_cast<uint8_t>(stream[1]) << 8;
 	uint32_t a2 = static_cast<uint8_t>(stream[2]);
@@ -464,7 +512,7 @@ bool read_tag(string& stream, tag& stream_tag) {
 	return true;
 }
 
-bool write_tag(string& stream, const tag& t) {
+bool write_tag(Stream& stream, const tag& t) {
 	write_uint(stream, t.previous_tag_size);
 	write_byte(stream, t.data_type);
 	write_byte(stream, t.body_size >> 16 & 0xff);
@@ -484,12 +532,16 @@ bool write_tag(string& stream, const tag& t) {
 bool concat_flv(vector<string>& input, string& output) {
 	vector<tag> meta_tags(input.size());//assume->not sure->may it is-> every flv file only have one meta-tag and it is always in the begining.
 	vector<pair<tag_return_type, tag_return_type>> metatypes_metas;
+	vector<Stream> streamin(input.size());
 	//unordered_set<tag_return_type> metatypes;
 	double total_duration = 0.0f;
 	for (size_t i = 0; i < input.size(); ++i) {
 		flv_header header;
-		read_flv_header(input[i], header);
-		read_tag(input[i], meta_tags[i]);
+		Stream s(&input[i]);
+		streamin[i] = s;
+		//output += input[i];
+		read_flv_header(streamin[i], header);
+		read_tag(streamin[i], meta_tags[i]);
 		pair<tag_return_type, tag_return_type> metatype_meta = read_meta_tag(meta_tags[i]);
 		metatypes_metas.push_back(metatype_meta);
 		//metatypes.insert(metatype_meta.first);
@@ -503,22 +555,31 @@ bool concat_flv(vector<string>& input, string& output) {
 	v.pointer = new double;
 	*reinterpret_cast<double*>(v.pointer) = total_duration;
 	reinterpret_cast<ECMAObject*>(metatypes_metas[0].second.pointer)->set("duration", v);
-
-	write_flv_header(output);
-	write_meta_tag(output, metatypes_metas[0]);
+	output = "";
+	Stream out(&output);
+	out.clear();
+	write_flv_header(out);
+	write_meta_tag(out, metatypes_metas[0]);
 	uint32_t timestamp_start = 0;
 	uint32_t record_last_previous_tag_size;
 	for (size_t i = 0; i < input.size(); ++i) {
 		tag temp;
 		uint32_t timestamp;
-		while (read_tag(input[i], temp)) {
+		while (read_tag(streamin[i], temp)) {
 			temp.timestamp += timestamp_start;//combining timestamp with other previous file
 			timestamp = temp.timestamp;//record the last tag timestamp of this combined file
 			record_last_previous_tag_size = temp.previous_tag_size;
-			write_tag(output, temp);
+			write_tag(out, temp);
 		}
 		timestamp_start = timestamp;
 	}
-	write_uint(output, record_last_previous_tag_size);
+	write_uint(out, record_last_previous_tag_size);
+	/*
+	cout << out.size() << endl;
+	cout << output.size() << endl;
+	if (out.size() < output.size()) {
+		output = output.substr(0, out.size());
+	}
+	*/
 	return true;
 }
